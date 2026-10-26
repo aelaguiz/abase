@@ -7,3 +7,8 @@ Amir's notes from the discovery stage, in the order he gave them. `BACKGROUND.md
 - **Definitions are part of the data model.** For each term: how we define it, and the words we use for it. The data structures support this directly.
 - **Start with data design.** Talk through everything we want the base to hold: what's in these notes, plus the canonical definitions, the metrics and how to get them, and the vocabulary list.
 - **Mine the existing workspaces.** psbrain, agentspace and psagentspace already keep a lot of this. Find what they have in common and start the list from it.
+- **Scope, first pass.** Amir sorted the elements into what's in, out and not yet decided. The result is in `ELEMENTS.md`.
+- **A top level for Amir himself:** values, preferences, communication preferences and mistakes.
+- **Change log needs exact rules.** It's in scope, but we have to get very specific about what goes there and what doesn't.
+- **Specialist agents are their own category.** These are role-based agents: what each one is responsible for, and its purview.
+- **Per-agent records wait.** Amir isn't sure what architecture he wants for per-agent records, one per agent or per session. He isn't confident yet about Sheets views or skills as the way in either.
