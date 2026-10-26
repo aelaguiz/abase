@@ -12,3 +12,5 @@ Amir's notes from the discovery stage, in the order he gave them. `BACKGROUND.md
 - **Change log needs exact rules.** It's in scope, but we have to get very specific about what goes there and what doesn't.
 - **Specialist agents are their own category.** These are role-based agents: what each one is responsible for, and its purview.
 - **Per-agent records wait.** Amir isn't sure what architecture he wants for per-agent records, one per agent or per session. He isn't confident yet about Sheets views or skills as the way in either.
+- **The database is Postgres, probably on Fly.** Host it next to AI Manager, which already runs Fly Redis. It needs to be simple, and other people need to be able to connect to it.
+- **Build the initial database schema now.** The whole system is Python, and the schema changes through migrations. Plan the schema first, get one round of review from GPT-6 Astra at xhigh, then stand the database up on a test machine on the network and stop.
