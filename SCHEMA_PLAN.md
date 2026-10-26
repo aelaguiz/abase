@@ -31,8 +31,8 @@ Each rule answers something that breaks in today's workspaces (`ELEMENTS.md`, "T
    - `observed`: an agent found it from evidence.
 
    A `ruled` record must carry the quote, who said it and when.
-5. **The database stamps time and order.** Ids and `created_at` come from Postgres, so many writers can't scramble the order.
-6. **Every write is announced.** The same trigger that writes `revisions` sends a Postgres `NOTIFY` on channel `abase_changes`, so a watcher can see what changed without polling files.
+5. **The database stamps the time.** `created_at`, `updated_at` and `revisions.changed_at` come from Postgres, not from each writer's clock.
+6. **Every write is signalled.** The same trigger that writes `revisions` sends a Postgres `NOTIFY` on channel `abase_changes`, with the revision's id, so a watcher can see what changed without polling files. The signal reaches only listeners connected at the time; `revisions` is the lasting record.
 7. **Rules live in the database, not in convention.** CHECKs, foreign keys and triggers apply to every client: Python, psql, a future Sheets sync.
 8. **Records are retired, not deleted.** Deleting from `entries` is blocked unless a session explicitly turns that on for an admin correction.
 
@@ -56,14 +56,14 @@ One row per record. The columns that every kind shares live here, and each kind 
 | `id` | bigint identity | Primary key |
 | `kind` | text | One of the kinds listed below |
 | `user_id` | bigint → `users` | Set for user-level kinds |
-| `company_id` | bigint → `companies` | Set for company- and project-level kinds. A user-level record may also set it, to say it applies at one company only |
+| `company_id` | bigint → `companies` | Set for company- and project-level kinds. Empty for user-level kinds, which are the same for every company |
 | `project_id` | bigint → `projects` | Set for project-level kinds. A composite foreign key (`project_id`, `company_id`) → `projects` (`entry_id`, `company_id`) guarantees the company matches the project's |
 | `key` | text | The name agents look a record up by: metric key, term, system name, project slug, specialist name. Required for those kinds, optional for the rest |
 | `title` | text, not blank | The record in one line |
 | `body` | text | The kind's main text (per kind, below) |
 | `guidance` | text | What an agent should do because of this record: how to apply a preference, how to handle a gotcha, how to think next time after a mistake |
 | `state` | text | `current`, `superseded` or `retired` |
-| `superseded_by_id` | bigint → `entries` | Set if and only if `state = 'superseded'`; never itself |
+| `superseded_by_id` | bigint → `entries` | Set if and only if `state = 'superseded'`. The successor must be a current record of the same kind and scope, which also rules out circles. Projects, systems and reports are never superseded, because their milestones, routes and editions would be left on the old record; they are updated or retired |
 | `state_reason` | text | Why it was superseded or retired |
 | `state_changed_at` | timestamptz | |
 | `authority` | text | `ruled`, `proposed` or `observed` |
@@ -78,11 +78,11 @@ One row per record. The columns that every kind shares live here, and each kind 
 
 | Level | Kinds | Scope columns |
 |---|---|---|
-| User | `value`, `preference`, `communication_preference`, `mistake` | `user_id` required; `company_id` optional; `project_id` empty |
+| User | `value`, `preference`, `communication_preference`, `mistake` | `user_id` required; `company_id` and `project_id` empty |
 | Company | `vocabulary_term`, `metric`, `data_gotcha`, `system`, `strategic_goal`, `roadmap_item`, `change`, `report`, `specialist`, `project` | `company_id` required; `user_id` and `project_id` empty |
 | Project | `north_star`, `plan`, `bug`, `experiment`, `forecast`, `research` | `project_id` and `company_id` required; `user_id` empty |
 
-**One current record per key.** A deferred exclusion constraint allows only one `current` record with the same kind, scope and `lower(key)`. Because it is checked at commit, one transaction can insert the replacement and then mark the old record superseded.
+**One current record per key.** A deferred exclusion constraint allows only one `current` record with the same kind, scope and `lower(key)`. Empty scope columns compare as 0, so NULLs can't let duplicates through. Because it is checked at commit, one transaction can insert the replacement and then mark the old record superseded.
 
 ### Detail tables, one per kind that needs them
 
@@ -99,8 +99,8 @@ Each detail table's primary key is `entry_id`. It also carries a constant `kind`
 | `data_gotcha` | Data gotchas (7) | the trap / – / what happened | `data_gotchas`: `starts_on`, `ends_on`, `symptoms`, `gotcha_status` (`open`, `resolved`, `disproven`), `status_changed_on` |
 | `system` | Systems and access (8) | system name / system name / what it is | child table `access_routes` (below) |
 | `strategic_goal` | Strategic goals (9) | the goal / – / context | `strategic_goals`: `measured_by`, `numbers_from`, `target`, `due_on` |
-| `roadmap_item` | Roadmap (10) | item / – / what it is | `roadmap_items`: `theme` (Amir's grouping), `position`, `roadmap_status` (`planned`, `in_progress`, `shipped`, `dropped`), `status_note`, `status_checked_at`, `project_id` (optional). Amir's items versus agent-proposed ones are told apart by `authority` |
-| `change` | Change log and business events (11) | what changed / – / detail | `changes`: `effective_at`, `found_at`, `area`, `change_type`, `is_business_event`, `event_category`, `verified_how`. Provisional: Amir has yet to settle what belongs here |
+| `roadmap_item` | Roadmap (10) | item / – / what it is | `roadmap_items`: `company_id`, `theme` (Amir's grouping), `position`, `roadmap_status` (`planned`, `in_progress`, `shipped`, `dropped`), `status_note`, `status_checked_at`, `project_id` (optional, and must be in the same company). Amir's items versus agent-proposed ones are told apart by `authority` |
+| `change` | Change log and business events (11) | what changed / – / detail | `changes`: `effective_at`, `found_at`, `is_business_event`. Kept minimal until Amir settles what belongs here |
 | `report` | Reports (12) | report name / report name / what it answers | `reports`: `producer`, `cadence`, `audience`, `format`, `home_url`; child table `report_editions` (below) |
 | `specialist` | Specialists (20) | role / specialist name / responsibilities | `specialists`: `purview`, `kpis`, `how_to_start` |
 | `project` | Project home (13) | project name / slug / why we're building it | `projects`: `company_id`, `project_status` (`active`, `paused`, `done`, `dropped`), `state_summary`, `started_on`, `owner`, `steward`; child tables `milestones` and `project_log` (below) |
@@ -130,10 +130,10 @@ Each detail table's primary key is `entry_id`. It also carries a constant `kind`
 
 ## Triggers and functions
 
-- `abase.audit()`: after every row change in every table except `revisions`, writes a `revisions` row and sends `NOTIFY abase_changes` with `{table, row_id, op}`.
-- `abase.touch_updated_at()`: keeps `entries.updated_at` current.
+- `abase.audit()`: after every row change in every table except `revisions`, writes a `revisions` row and sends `NOTIFY abase_changes` with `{table, row_id, op, revision_id}`.
+- `abase.check_entry()`: before each insert and update of an entry, refuses a change of kind, checks the successor when a record is superseded, and keeps `updated_at` and `state_changed_at` current.
 - `abase.block_entry_delete()`: refuses `DELETE` on `entries` unless `abase.allow_delete` is `on` for the session.
-- `abase.block_append_only_change()`: refuses update and delete on `project_log`.
+- `abase.block_append_only_change()`: refuses update and delete on `project_log` and `revisions`. A delete goes through when `abase.allow_delete` is on, so an admin can remove something that should never have been written, such as a secret.
 - `abase.freeze_forecast()`: refuses changes to `forecast_of`, `forecast`, `range_text` and `rested_on` after insert.
 
 ## Migrations
@@ -155,11 +155,11 @@ The tests run against a scratch database that they create and drop on the test s
 2. a record at the wrong level for its kind is refused;
 3. a `ruled` record without a quote is refused;
 4. a second `current` record with the same kind, scope and key is refused, but superseding inside one transaction works;
-5. `superseded` without `superseded_by_id`, and the reverse, are refused;
+5. `superseded` without `superseded_by_id`, and the reverse, are refused, and so is superseding by another kind, by another company's record, in a circle, or superseding a project;
 6. a detail row pointing at an entry of another kind is refused;
 7. every insert, update and delete writes a `revisions` row, and a listener receives the `NOTIFY`;
 8. deleting an entry is refused unless `abase.allow_delete` is on;
-9. a project-level record whose `company_id` differs from its project's is refused;
+9. a project-level record or roadmap item whose company differs from its project's is refused;
 10. changing a forecast after insert is refused, and `project_log` rows can't be changed.
 
 ## Test database
@@ -169,15 +169,24 @@ The tests run against a scratch database that they create and drop on the test s
 - **Password:** generated once and kept on this Mac in `~/workspace/secrets/`, never in the repo.
 - **Build:** run `uv run alembic upgrade head` from this Mac over Tailscale, then run the tests.
 
+## Review
+
+GPT-6 Astra at xhigh reviewed this plan once, on 2026-10-26. The fixes taken were those for holes in what the plan already promised:
+
+- the supersession rules;
+- user-level records left the same for every company, matching `ELEMENTS.md`;
+- the company check on roadmap items;
+- a minimal change log;
+- honest wording on what the change signal does.
+
+Its additions were left out as beyond an initial schema: database roles and grants, a pending state for proposed replacements, freezing research text, requiring detail rows, rolling detail changes up into `updated_at`, and hardening the test container.
+
 ## Open questions
 
-These need Amir's answer before this initial migration is done:
-
-1. **The change log.** What belongs in it, versus the project work log and GitHub. The `changes` table is provisional until he decides.
-2. **User-level records at one company.** Whether a user-level record (a preference or a mistake) may name a single company it applies to. The plan allows it.
-3. **Who wrote a record.** `recorded_by` and `actor` stay free text until Amir settles the per-agent architecture.
+1. **The change log.** What belongs in it, versus the project work log and GitHub. The `changes` table stays minimal until Amir decides.
+2. **Who wrote a record.** `recorded_by` and `actor` are free text for now. That doesn't block anything, and it will change when Amir settles the per-agent architecture.
 
 These are later steps, not part of this migration:
 
-4. **Database roles and grants on Fly.** For example, a read-only role for people, and an app role without delete rights.
-5. **Search.** Searching detail columns, and meaning-based search with pgvector.
+3. **Database roles and grants on Fly.** For example, a read-only role for people, and a writer role without delete rights.
+4. **Search.** Searching detail columns, and meaning-based search with pgvector.
