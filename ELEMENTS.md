@@ -2,6 +2,8 @@
 
 What the knowledge base holds, grouped by level, with Amir's scope calls from 2026-10-26. The list comes from comparing what his three agent workspaces keep today (the comparison is at the end).
 
+Which kind of knowledge each element holds (rule, intuition or data) is in `KNOWLEDGE_TYPES.md`.
+
 ## Scope
 
 ### In scope
