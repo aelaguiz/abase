@@ -18,3 +18,10 @@ Amir's notes from the discovery stage, in the order he gave them. `BACKGROUND.md
 - **"Knowledge Types" is its own document.** A knowledge type is different from a data type. The document maps each element to rule, intuition or data, with real examples from the workspaces for Amir to review.
 - **Companies have domains.** Cratejoy has a seller domain and a coding-agent domain; Poker Skill has paid acquisition. Without domains, lessons that belong to an area end up at the top level. Example: "keep sellers' products listed" was filed under Amir's preferences, but it isn't about Amir; it belongs to Cratejoy's seller domain.
 - **Not sure projects sit under domains.** The hierarchy needs real examples of domains and projects from the workspaces to settle it.
+- **Exploration gets mistaken for the plan.** A session ideates with Amir and builds decks, sheets or docs. Other agents find them and take them for the plan: an approval request to build something he didn't like, or the idea put on the forecast as something we're building. Projects need a lifecycle, something like:
+  - just an idea with materials, maybe forecasts, that he doesn't want to do;
+  - being implemented;
+  - implemented, and being watched for bugs and fixes;
+  - live for a long time, now only a historical record.
+
+  He isn't sure what level the lifecycle lives at.
