@@ -25,3 +25,4 @@ Amir's notes from the discovery stage, in the order he gave them. `BACKGROUND.md
   - live for a long time, now only a historical record.
 
   He isn't sure what level the lifecycle lives at.
+- **Poker Skill is the primary focus.** Examples and evidence should come mainly from Poker Skill (psbrain, psagentspace), with Cratejoy secondary.
